@@ -25,6 +25,7 @@ def load_all_data():
     training_data = []
     test_data = []
     n_train = 0
+    n_total = 0
     with open('imperfective_masked_cleaned_masterfile.txt', encoding='utf-8') as file:
         lines = ""
         for line in file:
@@ -32,6 +33,7 @@ def load_all_data():
                 line = re.sub('@[a-zA-Z0-9_]+', 'mention', line)
             lines = lines+line
         tweets = re.findall('<tweet>(.*)', lines)
+        n_total = len(tweets)
         n_train = int(0.8*len(tweets))
         for tweet in tweets[:n_train]:
             tweet_with_label = (tweet, 'imperfective')
@@ -50,7 +52,7 @@ def load_all_data():
         for tweet in tweets[:n_train]:
             tweet_with_label = (tweet, 'perfective')
             training_data.append(tweet_with_label)
-        for tweet in tweets[n_train:]:
+        for tweet in tweets[n_train:n_total]:
             tweet_with_label = (tweet, 'perfective')
             test_data.append(tweet_with_label)
     
@@ -373,14 +375,17 @@ def extract_features(tweet):
 
 def prune_features(features_training_data):
     print("Total amount of features extracted before pruning: ", len(ALL_FEATURES))
+    final_features = {}
     deleted = 0
     for tweet in features_training_data:
         for feature in list(tweet[0].keys()):
-            if(int(ALL_FEATURES[feature])) < 2:
+            if(int(ALL_FEATURES[feature])) < 10:
                 del tweet[0][feature]
                 deleted += 1
+            else:
+                final_features[feature] = 1
                 #del ALL_FEATURES[feature]
-    print("Total amount of features left after removing single features: ", len(ALL_FEATURES)-deleted)
+    print("Total amount of features left after removing non-frequent features: ", len(final_features))
     return(features_training_data)
 
 def print_fold_accuracy(fold_number, k_folds, n_correctly_classified, n_total_in_test):
@@ -472,9 +477,13 @@ def test_on_testset(test_data, train_data):
     false_positives = 0
     false_negatives = 0
     n_correctly_classified = 0
+    total_imperfectives = 0
+    total_perfectives = 0
+    total_classified = 0
     
     for tweet_tuple in features_test_data:
         predicted = classifier.classify(tweet_tuple[0])
+        total_classified += 1
         if predicted == tweet_tuple[1]:
             n_correctly_classified += 1
         if predicted == 'imperfective':
@@ -485,6 +494,11 @@ def test_on_testset(test_data, train_data):
         else:
             if tweet_tuple[1] == 'imperfective':
                 false_negatives += 1
+        
+        if tweet_tuple[1] == 'imperfective':
+            total_imperfectives += 1
+        else:
+            total_perfectives += 1
     
     accuracy = n_correctly_classified/len(features_test_data)
     precision = true_positives / (true_positives + false_positives)
@@ -499,9 +513,12 @@ def test_on_testset(test_data, train_data):
     print("Precision: ", precision)
     print("Recall: ", recall)
     print("F1: ", f1)
+    print("Total classified: ", total_classified)
+    print("Total imperfectives: ", total_imperfectives)
+    print("Total perfectives: ", total_perfectives)
 
 def main():
-    print("This is the right version! only final feature groups included, no pruning")
+    print("FINAL VERSION")
     data = load_all_data()
     raw_training_data = data[0]
     features_training_data = []
@@ -511,16 +528,10 @@ def main():
             label = instance[1]
             features_training_data.append((features, label))
     random.shuffle(features_training_data)
-    #features_training_data = prune_features(features_training_data)
-    try_features(features_training_data)
-    #test_data = data[1]
-    #use_testset 
-    #test_on_testset(data[1], features_training_data)
-    #print most informative features
-    '''
-    classifier.show_most_informative_features(100)
-    see classifier4.py (in SSI folder) for more
-    '''
+    features_training_data = prune_features(features_training_data)
+    #try_features(features_training_data)
+    test_data = data[1]
+    test_on_testset(data[1], features_training_data)
     
 if __name__ == '__main__':
     main()
